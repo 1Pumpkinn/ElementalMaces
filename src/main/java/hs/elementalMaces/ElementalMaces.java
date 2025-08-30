@@ -21,9 +21,12 @@ public final class ElementalMaces extends JavaPlugin {
         this.maceManager = new MaceManager(this);
 
         // Register commands
-        getCommand("trust").setExecutor(new TrustCommand(trustManager));
-        getCommand("untrust").setExecutor(new TrustCommand(trustManager));
-        getCommand("trustlist").setExecutor(new TrustCommand(trustManager));
+        TrustCommand trustCmd = new TrustCommand(trustManager);
+        getCommand("trust").setExecutor(trustCmd);
+        getCommand("untrust").setExecutor(trustCmd);
+        getCommand("trustlist").setExecutor(trustCmd);
+        getCommand("trustaccept").setExecutor(trustCmd);
+        getCommand("mace").setExecutor(new hs.elementalMaces.commands.MaceGiveCommand(maceManager));
 
         // Register listeners
         getServer().getPluginManager().registerEvents(new MaceListener(this), this);

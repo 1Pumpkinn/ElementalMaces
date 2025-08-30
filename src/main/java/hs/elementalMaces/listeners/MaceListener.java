@@ -16,6 +16,7 @@ import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.Vector;
 import hs.elementalMaces.ElementalMaces;
+import org.bukkit.event.player.PlayerMoveEvent;
 
 import java.util.*;
 
@@ -27,6 +28,31 @@ public class MaceListener implements Listener {
 
     public MaceListener(ElementalMaces plugin) {
         this.plugin = plugin;
+    }
+
+    @EventHandler
+    public void onPlayerMove(PlayerMoveEvent event) {
+        Player player = event.getPlayer();
+        ItemStack mainHand = player.getInventory().getItemInMainHand();
+        ItemStack offHand = player.getInventory().getItemInOffHand();
+
+        String mainType = plugin.getMaceManager().getMaceType(mainHand);
+        String offType = plugin.getMaceManager().getMaceType(offHand);
+
+        // Ocean mace: 5x water speed
+        if (("ocean".equals(mainType) || "ocean".equals(offType)) && player.isInWater()) {
+            Vector vel = player.getVelocity();
+            if (vel.length() > 0) {
+                vel.setX(vel.getX() * 5).setZ(vel.getZ() * 5);
+                player.setVelocity(vel);
+            }
+        }
+
+        // Fire mace: +2 damage when on fire
+        if (("fire".equals(mainType) || "fire".equals(offType)) && player.getFireTicks() > 0) {
+            player.removePotionEffect(PotionEffectType.STRENGTH);
+            player.addPotionEffect(new PotionEffect(PotionEffectType.STRENGTH, 20, 0, false, false));
+        }
     }
 
     @EventHandler

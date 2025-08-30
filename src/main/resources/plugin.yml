@@ -2,3 +2,20 @@ name: ElementalMaces
 version: '1.0-SNAPSHOT'
 main: hs.elementalMaces.ElementalMaces
 api-version: '1.21'
+
+commands:
+  trust:
+    description: Send a trust request to another player
+    usage: /trust <player>
+  untrust:
+    description: Remove trust with another player
+    usage: /untrust <player>
+  trustlist:
+    description: List trusted players and pending requests
+    usage: /trustlist
+  trustaccept:
+    description: Accept a trust request
+    usage: /trustaccept <player>
+  mace:
+    description: Give yourself an elemental mace
+    usage: /mace <air|fire|ocean|earth>
