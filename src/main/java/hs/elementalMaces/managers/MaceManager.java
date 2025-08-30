@@ -12,6 +12,8 @@ import org.bukkit.ChatColor;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
+import java.util.HashSet;
 
 public class MaceManager {
 

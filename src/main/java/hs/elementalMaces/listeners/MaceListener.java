@@ -1,5 +1,6 @@
 package hs.elementalMaces.listeners;
 
+import net.md_5.bungee.api.chat.TextComponent;
 import org.bukkit.*;
 import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
@@ -10,13 +11,16 @@ import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.FoodLevelChangeEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerItemHeldEvent;
+import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.Vector;
 import hs.elementalMaces.ElementalMaces;
-import org.bukkit.event.player.PlayerMoveEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
+import net.md_5.bungee.api.ChatMessageType;
+import org.bukkit.event.inventory.CraftItemEvent;
 
 import java.util.*;
 
@@ -25,9 +29,58 @@ public class MaceListener implements Listener {
     private final ElementalMaces plugin;
     private final Set<UUID> firePassthroughPlayers = new HashSet<>();
     private final Map<UUID, IronGolem> playerGolems = new HashMap<>();
+    private final Map<UUID, String> playerElements = new HashMap<>();
 
     public MaceListener(ElementalMaces plugin) {
         this.plugin = plugin;
+    }
+
+    @EventHandler
+    public void onCraftItem(CraftItemEvent event) {
+        ItemStack result = event.getRecipe().getResult();
+        String maceType = plugin.getMaceManager().getMaceType(result);
+
+        if (maceType != null) {
+            if (plugin.getMaceManager().isMaceCrafted(maceType)) {
+                event.setCancelled(true);
+                if (event.getWhoClicked() instanceof Player player) {
+                    player.sendMessage(ChatColor.RED + "Only one " + maceType + " mace can exist on the server!");
+                }
+            } else {
+                plugin.getMaceManager().markMaceCrafted(maceType);
+                if (event.getWhoClicked() instanceof Player player) {
+                    player.sendMessage(ChatColor.GOLD + "You crafted the legendary " + maceType + " mace!");
+                }
+            }
+        }
+    }
+
+    @EventHandler
+    public void onPlayerJoin(PlayerJoinEvent event) {
+        Player player = event.getPlayer();
+
+        // Roll for random element
+        String[] elements = {"air", "fire", "ocean", "earth"};
+        String element = elements[(int) (Math.random() * 4)];
+        playerElements.put(player.getUniqueId(), element);
+
+        // Apply passive effects based on element
+        switch (element) {
+            case "air":
+                player.sendMessage(ChatColor.AQUA + "You are attuned to AIR! No fall damage.");
+                break;
+            case "fire":
+                player.sendMessage(ChatColor.RED + "You are attuned to FIRE! Fire immunity and damage boost when burning.");
+                break;
+            case "ocean":
+                player.addPotionEffect(new PotionEffect(PotionEffectType.CONDUIT_POWER, Integer.MAX_VALUE, 0, false, false));
+                player.sendMessage(ChatColor.BLUE + "You are attuned to OCEAN! Water breathing and fast swimming.");
+                break;
+            case "earth":
+                player.addPotionEffect(new PotionEffect(PotionEffectType.HASTE, Integer.MAX_VALUE, 4, false, false));
+                player.sendMessage(ChatColor.GREEN + "You are attuned to EARTH! Mining speed and golden apple food effects.");
+                break;
+        }
     }
 
     @EventHandler
@@ -40,7 +93,7 @@ public class MaceListener implements Listener {
         String offType = plugin.getMaceManager().getMaceType(offHand);
 
         // Ocean mace: 5x water speed
-        if (("ocean".equals(mainType) || "ocean".equals(offType)) && player.isInWater()) {
+        if (("ocean".equals(mainType) || "ocean".equals(offType) || "ocean".equals(playerElements.get(player.getUniqueId()))) && player.isInWater()) {
             Vector vel = player.getVelocity();
             if (vel.length() > 0) {
                 vel.setX(vel.getX() * 5).setZ(vel.getZ() * 5);
@@ -49,7 +102,7 @@ public class MaceListener implements Listener {
         }
 
         // Fire mace: +2 damage when on fire
-        if (("fire".equals(mainType) || "fire".equals(offType)) && player.getFireTicks() > 0) {
+        if (("fire".equals(mainType) || "fire".equals(offType) || "fire".equals(playerElements.get(player.getUniqueId()))) && player.getFireTicks() > 0) {
             player.removePotionEffect(PotionEffectType.STRENGTH);
             player.addPotionEffect(new PotionEffect(PotionEffectType.STRENGTH, 20, 0, false, false));
         }
@@ -97,32 +150,18 @@ public class MaceListener implements Listener {
             for (Entity entity : center.getWorld().getNearbyEntities(center, 2.5, 2.5, 2.5)) {
                 if (entity instanceof Player target && !target.equals(player)) {
                     if (!plugin.getTrustManager().isTrusted(player, target)) {
-                        // Create cobweb blocks around the target
-                        Location targetLoc = target.getLocation();
-                        for (int x = -1; x <= 1; x++) {
-                            for (int z = -1; z <= 1; z++) {
-                                Location webLoc = targetLoc.clone().add(x, 0, z);
-                                if (webLoc.getBlock().getType() == Material.AIR) {
-                                    webLoc.getBlock().setType(Material.COBWEB);
-                                    // Remove cobwebs after 5 seconds
-                                    new BukkitRunnable() {
-                                        @Override
-                                        public void run() {
-                                            if (webLoc.getBlock().getType() == Material.COBWEB) {
-                                                webLoc.getBlock().setType(Material.AIR);
-                                            }
-                                        }
-                                    }.runTaskLater(plugin, 100L);
-                                }
-                            }
-                        }
+                        createCobwebTrap(target.getLocation());
                         target.addPotionEffect(new PotionEffect(PotionEffectType.SLOW_FALLING, 100, 0));
                     }
+                } else if (entity instanceof LivingEntity mob && !(mob instanceof Player)) {
+                    createCobwebTrap(mob.getLocation());
+                    mob.addPotionEffect(new PotionEffect(PotionEffectType.SLOW_FALLING, 100, 0));
                 }
             }
 
             plugin.getCooldownManager().setCooldown(player, "air_strike", 20);
             player.sendMessage(ChatColor.AQUA + "Wind Strike activated!");
+            player.spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent(ChatColor.AQUA + "Wind Strike - 20s cooldown"));
         } else {
             // Ability 1: Wind Shot
             if (plugin.getCooldownManager().hasCooldown(player, "air_shot")) {
@@ -140,6 +179,7 @@ public class MaceListener implements Listener {
 
             plugin.getCooldownManager().setCooldown(player, "air_shot", 5);
             player.sendMessage(ChatColor.AQUA + "Wind Shot fired!");
+            player.spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent(ChatColor.AQUA + "Wind Shot - 5s cooldown"));
         }
     }
 
@@ -177,6 +217,8 @@ public class MaceListener implements Listener {
                                         if (!plugin.getTrustManager().isTrusted(player, target)) {
                                             target.damage(4.0); // 2 hearts true damage
                                         }
+                                    } else if (entity instanceof LivingEntity mob && !(mob instanceof Player)) {
+                                        mob.damage(4.0); // 2 hearts true damage
                                     }
                                 }
                                 meteor.remove();
@@ -188,6 +230,7 @@ public class MaceListener implements Listener {
 
             plugin.getCooldownManager().setCooldown(player, "meteors", 25);
             player.sendMessage(ChatColor.RED + "Meteors summoned!");
+            player.spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent(ChatColor.RED + "Meteors - 25s cooldown"));
         } else {
             // Ability 1: Fire Passthrough
             if (plugin.getCooldownManager().hasCooldown(player, "fire_passthrough")) {
@@ -208,6 +251,7 @@ public class MaceListener implements Listener {
             }.runTaskLater(plugin, 100L);
 
             plugin.getCooldownManager().setCooldown(player, "fire_passthrough", 10);
+            player.spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent(ChatColor.RED + "Fire Passthrough - 10s cooldown"));
         }
     }
 
@@ -226,6 +270,8 @@ public class MaceListener implements Listener {
                     if (!plugin.getTrustManager().isTrusted(player, target)) {
                         target.setVelocity(new Vector(0, 2, 0)); // Launch upwards
                     }
+                } else if (entity instanceof LivingEntity mob && !(mob instanceof Player)) {
+                    mob.setVelocity(new Vector(0, 2, 0)); // Launch upwards
                 }
             }
 
@@ -235,6 +281,7 @@ public class MaceListener implements Listener {
 
             plugin.getCooldownManager().setCooldown(player, "water_geyser", 30);
             player.sendMessage(ChatColor.BLUE + "Water Geyser activated!");
+            player.spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent(ChatColor.BLUE + "Water Geyser - 30s cooldown"));
         } else {
             // Ability 1: Water Heal
             if (plugin.getCooldownManager().hasCooldown(player, "water_heal")) {
@@ -254,6 +301,7 @@ public class MaceListener implements Listener {
             player.getWorld().spawnParticle(Particle.HEART, player.getLocation().add(0, 1, 0), 5);
 
             plugin.getCooldownManager().setCooldown(player, "water_heal", 10);
+            player.spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent(ChatColor.BLUE + "Water Heal - 10s cooldown"));
         }
     }
 
@@ -273,6 +321,9 @@ public class MaceListener implements Listener {
                         Vector direction = center.toVector().subtract(target.getLocation().toVector()).normalize();
                         target.setVelocity(direction.multiply(2));
                     }
+                } else if (entity instanceof LivingEntity mob && !(mob instanceof Player)) {
+                    Vector direction = center.toVector().subtract(mob.getLocation().toVector()).normalize();
+                    mob.setVelocity(direction.multiply(2));
                 }
             }
 
@@ -282,6 +333,7 @@ public class MaceListener implements Listener {
 
             plugin.getCooldownManager().setCooldown(player, "tornado_pull", 15);
             player.sendMessage(ChatColor.GREEN + "Tornado Pull activated!");
+            player.spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent(ChatColor.GREEN + "Tornado Pull - 15s cooldown"));
         } else {
             // Ability 1: Buddy Up
             if (plugin.getCooldownManager().hasCooldown(player, "buddy_up")) {
@@ -310,6 +362,7 @@ public class MaceListener implements Listener {
 
             plugin.getCooldownManager().setCooldown(player, "buddy_up", 15);
             player.sendMessage(ChatColor.GREEN + "Iron Golem buddy summoned!");
+            player.spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent(ChatColor.GREEN + "Buddy Up - 15s cooldown"));
         }
     }
 
@@ -350,6 +403,46 @@ public class MaceListener implements Listener {
                     golem.setTarget(attacker);
                 }
             }
+        }
+    }
+
+    private void createCobwebTrap(Location targetLoc) {
+        for (int x = -1; x <= 1; x++) {
+            for (int z = -1; z <= 1; z++) {
+                Location webLoc = targetLoc.clone().add(x, 0, z);
+                if (webLoc.getBlock().getType() == Material.AIR) {
+                    webLoc.getBlock().setType(Material.COBWEB);
+                    // Remove cobwebs after 5 seconds
+                    new BukkitRunnable() {
+                        @Override
+                        public void run() {
+                            if (webLoc.getBlock().getType() == Material.COBWEB) {
+                                webLoc.getBlock().setType(Material.AIR);
+                            }
+                        }
+                    }.runTaskLater(plugin, 100L);
+                }
+            }
+        }
+    }
+
+    private void handleMaceHitEffectMob(Player attacker, Entity victim, String maceType) {
+        switch (maceType) {
+            case "air":
+                if (victim instanceof LivingEntity living) {
+                    living.addPotionEffect(new PotionEffect(PotionEffectType.SLOW_FALLING, 40, 0));
+                }
+                break;
+            case "fire":
+                victim.setFireTicks(60); // 3 seconds of fire
+                break;
+            case "ocean":
+                // 1% chance for mining fatigue
+                if (Math.random() < 0.01 && victim instanceof LivingEntity living) {
+                    living.addPotionEffect(new PotionEffect(PotionEffectType.MINING_FATIGUE, 40, 2));
+                    attacker.sendMessage(ChatColor.BLUE + "Mining fatigue applied!");
+                }
+                break;
         }
     }
 
