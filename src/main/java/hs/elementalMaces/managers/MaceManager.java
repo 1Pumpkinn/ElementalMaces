@@ -18,9 +18,38 @@ import java.util.HashSet;
 public class MaceManager {
 
     private final JavaPlugin plugin;
+    private final Set<String> craftedMaces = new HashSet<>();
 
     public MaceManager(JavaPlugin plugin) {
         this.plugin = plugin;
+    }
+
+    /**
+     * Check if a mace of the given type has already been crafted
+     */
+    public boolean isMaceCrafted(String maceType) {
+        return craftedMaces.contains(maceType.toLowerCase());
+    }
+
+    /**
+     * Mark a mace type as crafted
+     */
+    public void markMaceCrafted(String maceType) {
+        craftedMaces.add(maceType.toLowerCase());
+    }
+
+    /**
+     * Remove a mace type from the crafted list (useful for resetting)
+     */
+    public void unmarkMaceCrafted(String maceType) {
+        craftedMaces.remove(maceType.toLowerCase());
+    }
+
+    /**
+     * Get all crafted mace types
+     */
+    public Set<String> getCraftedMaces() {
+        return new HashSet<>(craftedMaces);
     }
 
     public ItemStack createAirMace() {
