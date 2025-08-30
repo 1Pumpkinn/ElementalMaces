@@ -1,0 +1,4 @@
+name: ElementalMaces
+version: '1.0-SNAPSHOT'
+main: hs.elementalMaces.ElementalMaces
+api-version: '1.21'
