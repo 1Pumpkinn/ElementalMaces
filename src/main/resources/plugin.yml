@@ -19,3 +19,7 @@ commands:
   mace:
     description: Give yourself an elemental mace
     usage: /mace <air|fire|ocean|earth>
+  resetmace:
+    description: Reset a mace so it can be crafted again
+    usage: /resetmace <air|fire|ocean|earth|all>
+    permission: elementalmaces.resetmace

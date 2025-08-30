@@ -27,7 +27,7 @@ public final class ElementalMaces extends JavaPlugin {
         getCommand("trustlist").setExecutor(trustCmd);
         getCommand("trustaccept").setExecutor(trustCmd);
         getCommand("mace").setExecutor(new hs.elementalMaces.commands.MaceGiveCommand(maceManager));
-
+        getCommand("resetmace").setExecutor(new hs.elementalMaces.commands.ResetMaceCommand(maceManager));
         // Register listeners
         getServer().getPluginManager().registerEvents(new MaceListener(this), this);
 
@@ -39,6 +39,7 @@ public final class ElementalMaces extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        maceManager.saveMaceData();
         getLogger().info("ElementalMaces plugin has been disabled!");
     }
 

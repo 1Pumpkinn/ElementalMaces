@@ -10,46 +10,88 @@ import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.ChatColor;
 
+import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.configuration.file.YamlConfiguration;
+
+import java.io.*;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.HashSet;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.UUID;
 
 public class MaceManager {
 
     private final JavaPlugin plugin;
-    private final Set<String> craftedMaces = new HashSet<>();
+    private final Map<String, UUID> maceOwners = new HashMap<>();
+    private final File dataFile;
+    private FileConfiguration config;
 
     public MaceManager(JavaPlugin plugin) {
         this.plugin = plugin;
+        this.dataFile = new File(plugin.getDataFolder(), "maces.yml");
+        loadMaceData();
     }
 
-    /**
-     * Check if a mace of the given type has already been crafted
-     */
     public boolean isMaceCrafted(String maceType) {
-        return craftedMaces.contains(maceType.toLowerCase());
+        return maceOwners.containsKey(maceType.toLowerCase());
     }
 
-    /**
-     * Mark a mace type as crafted
-     */
-    public void markMaceCrafted(String maceType) {
-        craftedMaces.add(maceType.toLowerCase());
+    public void markMaceCrafted(String maceType, UUID playerUUID) {
+        maceOwners.put(maceType.toLowerCase(), playerUUID);
+        saveMaceData();
     }
 
-    /**
-     * Remove a mace type from the crafted list (useful for resetting)
-     */
-    public void unmarkMaceCrafted(String maceType) {
-        craftedMaces.remove(maceType.toLowerCase());
+    public void resetMace(String maceType) {
+        maceOwners.remove(maceType.toLowerCase());
+        saveMaceData();
     }
 
-    /**
-     * Get all crafted mace types
-     */
-    public Set<String> getCraftedMaces() {
-        return new HashSet<>(craftedMaces);
+    public void resetAllMaces() {
+        maceOwners.clear();
+        saveMaceData();
+    }
+
+    public UUID getMaceOwner(String maceType) {
+        return maceOwners.get(maceType.toLowerCase());
+    }
+
+    private void loadMaceData() {
+        if (!dataFile.exists()) {
+            plugin.getDataFolder().mkdirs();
+            try { dataFile.createNewFile(); } catch (IOException e) {
+                plugin.getLogger().warning("Failed to create maces.yml: " + e.getMessage());
+            }
+        }
+        config = YamlConfiguration.loadConfiguration(dataFile);
+        for (String key : config.getKeys(false)) {
+            String uuidStr = config.getString(key);
+            if (uuidStr != null) {
+                try {
+                    maceOwners.put(key, UUID.fromString(uuidStr));
+                } catch (IllegalArgumentException e) {
+                    plugin.getLogger().warning("Invalid UUID for mace " + key + ": " + uuidStr);
+                }
+            }
+        }
+    }
+
+    public void saveMaceData() {
+        for (Map.Entry<String, UUID> entry : maceOwners.entrySet()) {
+            config.set(entry.getKey(), entry.getValue().toString());
+        }
+        for (String key : config.getKeys(false)) {
+            if (!maceOwners.containsKey(key)) {
+                config.set(key, null);
+            }
+        }
+        try {
+            config.save(dataFile);
+        } catch (IOException e) {
+            plugin.getLogger().warning("Failed to save maces.yml: " + e.getMessage());
+        }
     }
 
     public ItemStack createAirMace() {

@@ -44,10 +44,12 @@ public class MaceListener implements Listener {
             if (plugin.getMaceManager().isMaceCrafted(maceType)) {
                 event.setCancelled(true);
                 if (event.getWhoClicked() instanceof Player player) {
-                    player.sendMessage(ChatColor.RED + "Only one " + maceType + " mace can exist on the server!");
+                    UUID owner = plugin.getMaceManager().getMaceOwner(maceType);
+                    String ownerName = owner != null ? Bukkit.getOfflinePlayer(owner).getName() : "someone";
+                    player.sendMessage(ChatColor.RED + "Only one " + maceType + " mace can exist! (owned by " + ownerName + ")");
                 }
             } else {
-                plugin.getMaceManager().markMaceCrafted(maceType);
+                plugin.getMaceManager().markMaceCrafted(maceType, ((Player) event.getWhoClicked()).getUniqueId());
                 if (event.getWhoClicked() instanceof Player player) {
                     player.sendMessage(ChatColor.GOLD + "You crafted the legendary " + maceType + " mace!");
                 }
